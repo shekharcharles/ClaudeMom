@@ -62,7 +62,7 @@ fn mutate<T>(change: impl FnOnce(&mut UpstreamBook) -> anyhow::Result<T>) -> any
 fn respond<T>(result: anyhow::Result<(UpstreamBook, T)>, message: impl FnOnce(T) -> String, failure: &str) -> CommandResult<BookPayload> {
     match result {
         Ok((book, value)) => ok(&message(value), book.into()),
-        Err(error) => failed(&format!("{failure}：{error:#}"), load().unwrap_or_default().into()),
+        Err(error) => failed(&format!("{failure}: {error:#}"), load().unwrap_or_default().into()),
     }
 }
 
@@ -71,7 +71,7 @@ fn respond<T>(result: anyhow::Result<(UpstreamBook, T)>, message: impl FnOnce(T)
 #[tauri::command]
 pub fn claude_mom_load() -> CommandResult<BookPayload> {
     match load() {
-        Ok(book) => ok("已读取上游。", book.into()),
+        Ok(book) => ok("Providers loaded.", book.into()),
         Err(error) => failed(&format!("{error:#}"), BookPayload::default()),
     }
 }
@@ -86,7 +86,7 @@ pub fn claude_mom_save_profile(profile: UpstreamProfile, activate: Option<bool>)
         }
         Ok(book.profiles.iter().find(|item| item.id == id).map(|item| item.name.clone()).unwrap_or_default())
     });
-    respond(result, |name| format!("已保存「{name}」。"), "保存上游失败")
+    respond(result, |name| format!("Saved '{name}'."), "Failed to save provider")
 }
 
 #[tauri::command]
@@ -96,7 +96,7 @@ pub fn claude_mom_delete_profile(id: String) -> CommandResult<BookPayload> {
         book.remove(&id);
         Ok(name)
     });
-    respond(result, |name| format!("已删除「{name}」。"), "删除上游失败")
+    respond(result, |name| format!("Deleted '{name}'."), "Failed to delete provider")
 }
 
 #[tauri::command]
@@ -107,14 +107,14 @@ pub fn claude_mom_set_active(id: String) -> CommandResult<BookPayload> {
             .iter()
             .find(|item| item.id == id)
             .map(|item| item.name.clone())
-            .ok_or_else(|| anyhow::anyhow!("这组上游已经不在了"))?;
+            .ok_or_else(|| anyhow::anyhow!("This provider no longer exists"))?;
         book.active_id = Some(id.clone());
         Ok(name)
     });
-    respond(result, |name| format!("已切换到「{name}」，重新启动 Claude 后生效。"), "切换上游失败")
+    respond(result, |name| format!("Switched to '{name}'. Restart Claude to apply."), "Failed to switch provider")
 }
 
-/// 从其他工具导入：`ccswitch` / `magpie` / `codexpp`。网关类来源（Magpie、Codex++）没有模型时顺手拉一次。
+/// 从其他工具导入：`ccswitch` / `magpie` / `codexpp`。网关类来源（Magpie, Codex++）没有模型时顺手拉一次。
 #[tauri::command]
 pub async fn claude_mom_import(source: String) -> CommandResult<BookPayload> {
     let imported = match source.as_str() {
@@ -126,14 +126,14 @@ pub async fn claude_mom_import(source: String) -> CommandResult<BookPayload> {
         claude_mom::SOURCE_CODEX_PLUS_PLUS => {
             claude_mom::codex_plus_plus_profile(&claude_mom::codex_plus_plus_state_dir()).map(|profile| vec![profile])
         }
-        other => Err(anyhow::anyhow!("未知的导入来源：{other}")),
+        other => Err(anyhow::anyhow!("Unknown import source: {other}")),
     };
     let mut imported = match imported {
         Ok(imported) => imported,
         Err(error) => return failed(&format!("{error:#}"), load().unwrap_or_default().into()),
     };
     if imported.is_empty() {
-        return failed("没有找到可导入的 Claude 供应商（只导入 Anthropic 格式的）。", load().unwrap_or_default().into());
+        return failed("No importable Claude providers found (Anthropic-compatible only).", load().unwrap_or_default().into());
     }
     let mut unreachable = Vec::new();
     for profile in imported.iter_mut().filter(|profile| profile.models.is_empty()) {
@@ -161,20 +161,20 @@ pub async fn claude_mom_import(source: String) -> CommandResult<BookPayload> {
     respond(
         result,
         |(added, updated)| {
-            let mut message = format!("已导入：新增 {added} 组，更新 {updated} 组。");
+            let mut message = format!("Imported: {added} added, {updated} updated.");
             if !unreachable.is_empty() {
-                message.push_str(&format!("{} 暂时连不上，模型列表稍后再拉。", unreachable.join("、")));
+                message.push_str(&format!("{} are unreachable; fetch their models later.", unreachable.join(", ")));
             }
             message
         },
-        "导入失败",
+        "Import failed",
     )
 }
 
 #[tauri::command]
 pub async fn claude_mom_fetch_models(base_url: String, api_key: String) -> CommandResult<ModelsPayload> {
     match claude_mom::fetch_models(&base_url, &api_key).await {
-        Ok(models) => ok(&format!("拉到 {} 个模型。", models.len()), ModelsPayload { models }),
+        Ok(models) => ok(&format!("Fetched {} models.", models.len()), ModelsPayload { models }),
         Err(error) => failed(&format!("{error:#}"), ModelsPayload::default()),
     }
 }
@@ -191,30 +191,30 @@ pub async fn claude_mom_set_voice(enabled: bool) -> CommandResult<Value> {
     .unwrap_or_else(|error| Err(anyhow::anyhow!("{error}")));
     match result {
         Ok(status) => ok(
-            if enabled { "原生听写已打开，重新启动 Claude 后在输入框里能看到麦克风。" } else { "原生听写已关闭。" },
+            if enabled { "Voice dictation enabled. Restart Claude to show the microphone." } else { "Voice dictation disabled." },
             serde_json::to_value(status).unwrap_or_default(),
         ),
         Err(error) => failed(&format!("{error:#}"), json!({})),
     }
 }
 
-// ── Claude 本身：状态、设置、动作（转给 claude-local） ─────────────────────────
+// ── Claude 本身：状态, 设置, 动作（转给 claude-local） ─────────────────────────
 
 #[tauri::command]
 pub async fn claude_local_status() -> CommandResult<Value> {
     match tauri::async_runtime::spawn_blocking(claude_local::status).await {
-        Ok(Ok(status)) => ok("Claude 状态已读取。", serde_json::to_value(status).unwrap_or_default()),
+        Ok(Ok(status)) => ok("Claude status loaded.", serde_json::to_value(status).unwrap_or_default()),
         Ok(Err(error)) => failed(&format!("{error:#}"), json!({})),
-        Err(error) => failed(&format!("Claude 状态读取失败：{error}"), json!({})),
+        Err(error) => failed(&format!("Failed to read Claude status: {error}"), json!({})),
     }
 }
 
 #[tauri::command]
 pub async fn claude_local_configure(config: claude_local::ClaudeLocalSettings) -> CommandResult<Value> {
     match tauri::async_runtime::spawn_blocking(move || claude_local::configure(config)).await {
-        Ok(Ok(status)) => ok("设置已保存。", serde_json::to_value(status).unwrap_or_default()),
+        Ok(Ok(status)) => ok("Settings saved.", serde_json::to_value(status).unwrap_or_default()),
         Ok(Err(error)) => failed(&format!("{error:#}"), json!({})),
-        Err(error) => failed(&format!("保存设置失败：{error}"), json!({})),
+        Err(error) => failed(&format!("Failed to save settings: {error}"), json!({})),
     }
 }
 
@@ -226,7 +226,7 @@ pub async fn claude_local_action(action: String) -> CommandResult<Value> {
             let status = claude_local::status().ok().and_then(|status| serde_json::to_value(status).ok());
             failed(&format!("{error:#}"), status.unwrap_or_else(|| json!({})))
         }
-        Err(error) => failed(&format!("操作失败：{error}"), json!({})),
+        Err(error) => failed(&format!("Operation failed: {error}"), json!({})),
     }
 }
 
@@ -240,7 +240,7 @@ pub fn dictation_local_model_status() -> Value {
 #[tauri::command]
 pub async fn download_dictation_local_model() -> CommandResult<Value> {
     match claude_local::dictation::prepare_model().await {
-        Ok(state) => ok("本地 SenseVoice 模型下载并校验完成。", state),
+        Ok(state) => ok("Local SenseVoice model downloaded and verified.", state),
         Err(error) => failed(&error.message, json!({})),
     }
 }
