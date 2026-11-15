@@ -528,9 +528,9 @@ fn recover_orphan_config_library(sets: &[ProfileSet], root: &Path) -> Result<Opt
         }
         if !target.exists() {
             fs::rename(&backup, &target)
-                .with_context(|| format!("无法恢复 {}", target.display()))?;
+                .with_context(|| format!("Could not restore {}", target.display()))?;
             notes.push(format!(
-                "已恢复上次遗留的 configLibrary 备份：{}",
+                "Restored leftover configLibrary backup: {}",
                 target.display()
             ));
             continue;
@@ -549,9 +549,9 @@ fn recover_orphan_config_library(sets: &[ProfileSet], root: &Path) -> Result<Opt
             archived = archive.join(format!("configLibrary-orphan-{stamp}-{index}"));
         }
         fs::rename(&backup, &archived)
-            .with_context(|| format!("无法归档遗留的 {}", backup.display()))?;
+            .with_context(|| format!("Could not archive leftover {}", backup.display()))?;
         notes.push(format!(
-            "已把上次遗留的 configLibrary 备份归档到 {}",
+            "Archived leftover configLibrary backup to {}",
             archived.display()
         ));
     }
@@ -566,7 +566,7 @@ fn apply_real_profile_one_p(sets: &[ProfileSet], root: &Path) -> Result<()> {
         let state: Value = serde_json::from_slice(&fs::read(&state_path)?)?;
         ensure!(
             state["applied"].as_bool() == Some(true),
-            "Claude 本地模式切换状态文件不一致，请检查 {SWITCH_STATE_FILE}"
+            "Claude local-mode switch state is inconsistent; inspect {SWITCH_STATE_FILE}"
         );
         return Ok(());
     }
@@ -575,15 +575,15 @@ fn apply_real_profile_one_p(sets: &[ProfileSet], root: &Path) -> Result<()> {
     for config_path in desktop_config_paths(sets) {
         let key = config_path.to_string_lossy().into_owned();
         if fs::symlink_metadata(&config_path).is_ok_and(|m| m.file_type().is_symlink()) {
-            bail!("Claude 配置不能是符号链接: {}", config_path.display());
+            bail!("Claude configuration must not be a symlink: {}", config_path.display());
         }
         match fs::read(&config_path) {
             Ok(bytes) => {
                 let mut config: Value = serde_json::from_slice(&bytes)
-                    .with_context(|| format!("{} 不是有效 JSON", config_path.display()))?;
+                    .with_context(|| format!("{} is not valid JSON", config_path.display()))?;
                 let obj = config
                     .as_object_mut()
-                    .context("Claude 配置必须是 JSON 对象")?;
+                    .context("Claude configuration must be a JSON object")?;
                 original.insert(
                     key,
                     obj.get("deploymentMode").cloned().unwrap_or(Value::Null),
@@ -609,7 +609,7 @@ fn apply_real_profile_one_p(sets: &[ProfileSet], root: &Path) -> Result<()> {
         let backup = library.with_file_name(CONFIG_LIBRARY_BACKUP);
         if backup.exists() {
             bail!(
-                "Claude-3p 已存在未恢复的 configLibrary 备份，请先处理 {}",
+                "An unrestored Claude 3p configLibrary backup exists; resolve {} first",
                 backup.display()
             );
         }
@@ -620,7 +620,7 @@ fn apply_real_profile_one_p(sets: &[ProfileSet], root: &Path) -> Result<()> {
     let mut moved = Vec::new();
     for (library, backup) in libraries {
         fs::rename(&library, &backup)
-            .with_context(|| format!("无法挪开 {}", library.display()))?;
+            .with_context(|| format!("Cannot move {}", library.display()))?;
         moved.push(json!({
             "target": library.to_string_lossy(),
             "backup": backup.to_string_lossy(),
@@ -671,7 +671,7 @@ fn restore_real_profile(sets: &[ProfileSet], root: &Path) -> Result<()> {
             let target = PathBuf::from(entry["target"].as_str().unwrap_or_default());
             if backup.exists() && !target.exists() {
                 fs::rename(&backup, &target)
-                    .with_context(|| format!("无法恢复 {}", target.display()))?;
+                    .with_context(|| format!("Could not restore {}", target.display()))?;
             }
         }
     } else if state["configLibraryMoved"].as_bool() == Some(true) {
@@ -682,7 +682,7 @@ fn restore_real_profile(sets: &[ProfileSet], root: &Path) -> Result<()> {
             && !target.exists()
         {
             fs::rename(&backup, &target)
-                .with_context(|| format!("无法恢复 {}", target.display()))?;
+                .with_context(|| format!("Could not restore {}", target.display()))?;
         }
     }
     fs::remove_file(&state_path).ok();
@@ -731,7 +731,7 @@ fn probe(command: &mut Command, timeout: Duration) -> Result<(bool, Vec<u8>)> {
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
         .spawn()
-        .context("无法运行 Claude 本地服务检查")?;
+        .context("Could not check Claude local service")?;
     let deadline = Instant::now() + timeout;
     loop {
         if let Some(status) = child.try_wait()? {
@@ -744,7 +744,7 @@ fn probe(command: &mut Command, timeout: Duration) -> Result<(bool, Vec<u8>)> {
         if Instant::now() >= deadline {
             let _ = child.kill();
             let _ = child.wait();
-            bail!("Claude 本地服务检查超时");
+            bail!("Claude local service health check timed out");
         }
         std::thread::sleep(Duration::from_millis(20));
     }
@@ -1061,7 +1061,7 @@ fn generate_ca(ca: &Path, ca_name: &str) -> Result<()> {
     };
 
     // 本地 CA：默认 ECDSA P-256 自签，只用来签本机这一枚服务证书。
-    let ca_key = KeyPair::generate().context("生成本地 CA 私钥失败")?;
+    let ca_key = KeyPair::generate().context("Failed to generate local CA private key")?;
     let mut ca_params = CertificateParams::default();
     ca_params.distinguished_name = distinguished_name(ca_name);
     ca_params.is_ca = IsCa::Ca(BasicConstraints::Unconstrained);
@@ -1071,12 +1071,12 @@ fn generate_ca(ca: &Path, ca_name: &str) -> Result<()> {
     ca_params.not_after = now + time::Duration::days(3650);
     let ca_cert = ca_params
         .self_signed(&ca_key)
-        .context("生成本地 CA 证书失败")?;
+        .context("Failed to generate local CA certificate")?;
 
     // 服务端证书：本地代理拦截 claude.ai 系 TLS 用。SAN 覆盖官方域名与 localhost；
     // "127.0.0.1" 会被解析成 IpAddress 类型的 SAN（不是 DNS）。有效期不超过 825 天
     // （Apple 对 TLS 服务端证书的要求），取 824 天留一天余量。
-    let server_key = KeyPair::generate().context("生成本地服务私钥失败")?;
+    let server_key = KeyPair::generate().context("Failed to generate local service private key")?;
     let mut server_params = CertificateParams::new(vec![
         "claude.ai".into(),
         "*.claude.ai".into(),
@@ -1089,7 +1089,7 @@ fn generate_ca(ca: &Path, ca_name: &str) -> Result<()> {
         "localhost".into(),
         "127.0.0.1".into(),
     ])
-    .context("本地服务证书参数无效")?;
+    .context("Invalid local service certificate parameters")?;
     server_params.distinguished_name = distinguished_name("claude.ai");
     server_params.is_ca = IsCa::NoCa;
     server_params.key_usages = vec![KeyUsagePurpose::DigitalSignature];
@@ -1101,7 +1101,7 @@ fn generate_ca(ca: &Path, ca_name: &str) -> Result<()> {
     let issuer = Issuer::new(ca_params, &ca_key);
     let server_cert = server_params
         .signed_by(&server_key, &issuer)
-        .context("签发本地服务证书失败")?;
+        .context("Failed to issue local service certificate")?;
 
     // 私钥在前证书在后；PEM 私钥是 PKCS#8，Node 的 tls.createSecureContext 能直接读。
     write_private(&ca.join("ca.key"), ca_key.serialize_pem().as_bytes())?;
@@ -1114,7 +1114,7 @@ fn generate_ca(ca: &Path, ca_name: &str) -> Result<()> {
 fn trust_ca(root: &Path) -> Result<()> {
     ensure!(
         platform_supported(),
-        "本地证书信任目前仅支持 macOS 和 Windows"
+        "Local certificate trust is only supported on macOS and Windows"
     );
     if ca_trusted(root) {
         return Ok(());
@@ -1126,7 +1126,7 @@ fn trust_ca(root: &Path) -> Result<()> {
             .arg(home_dir().join("Library/Keychains/login.keychain-db"))
             .arg(root.join("ca/ca.pem")),
         Duration::from_secs(120),
-        "本地证书尚未信任，请在系统授权窗口中允许后重试",
+        "Local certificate is not trusted. Approve the system authorization prompt and retry",
     )?;
     // certutil -addstore 会弹 Windows 安全警告，用户点「是」才会返回成功。
     #[cfg(windows)]
@@ -1135,9 +1135,9 @@ fn trust_ca(root: &Path) -> Result<()> {
             .args(["-user", "-addstore", "Root"])
             .arg(root.join("ca/ca.pem")),
         Duration::from_secs(120),
-        "本地证书尚未信任，请在 Windows 弹出的安全警告中点击“是”后重试",
+        "Local certificate is not trusted. Click Yes in the Windows security prompt and retry",
     )?;
-    ensure!(ca_trusted(root), "本地证书信任未生效，请重新检查系统授权");
+    ensure!(ca_trusted(root), "Certificate trust has not taken effect; check system authorization");
     Ok(())
 }
 
@@ -1167,7 +1167,7 @@ fn assets_digest() -> &'static str {
 fn untrust_ca(root: &Path) -> Result<()> {
     ensure!(
         platform_supported(),
-        "本地证书信任目前仅支持 macOS 和 Windows"
+        "Local certificate trust is only supported on macOS and Windows"
     );
     let cert = root.join("ca/ca.pem");
     if !cert.is_file() {
@@ -1183,7 +1183,7 @@ fn untrust_ca(root: &Path) -> Result<()> {
             .status();
         ensure!(
             !ca_trusted(root),
-            "本地证书仍在信任列表中，请在“钥匙串访问”里删除 Codex++ Local CA"
+            "Certificate is still trusted; remove Codex++ Local CA from Keychain Access"
         );
     }
     // certutil -delstore 同样会弹确认框，给足用户点确认的时间。
@@ -1193,7 +1193,7 @@ fn untrust_ca(root: &Path) -> Result<()> {
             .ok()
             .and_then(|pem| ca_thumbprint(&pem))
         else {
-            bail!("无法读取本地证书指纹，无法取消信任");
+            bail!("Cannot read local certificate fingerprint to remove trust");
         };
         let _ = probe(
             hidden_command("certutil").args(["-user", "-delstore", "Root", &thumbprint]),
@@ -1201,7 +1201,7 @@ fn untrust_ca(root: &Path) -> Result<()> {
         );
         ensure!(
             !ca_trusted(root),
-            "本地证书仍在信任列表中，请运行 certmgr.msc，在“受信任的根证书颁发机构”里删除 {}",
+            "Certificate remains trusted. Open certmgr.msc and remove {} from Trusted Root Certification Authorities",
             host().ca_name()
         );
     }
@@ -1329,7 +1329,7 @@ fn validate_config(mut config: ClaudeLocalSettings) -> Result<ClaudeLocalSetting
     config.model = config.model.trim().to_string();
     ensure!(
         config.model.len() <= 512 && !config.model.chars().any(char::is_control),
-        "模型名称包含无效字符或过长"
+        "Model name contains invalid characters or is too long"
     );
     if config.force_background_mode {
         config.background_mode = true;
@@ -1339,7 +1339,7 @@ fn validate_config(mut config: ClaudeLocalSettings) -> Result<ClaudeLocalSetting
     }
     // 显示名与套餐按白名单落盘：界面改哪一格都不影响其它字段的规范化。
     config.display_name = config.effective_display_name();
-    ensure!(config.email_is_valid(), "邮箱格式不正确");
+    ensure!(config.email_is_valid(), "Invalid email address");
     config.email = config.effective_email();
     config.plan = config.normalized_plan().to_string();
     Ok(config)
@@ -1375,7 +1375,7 @@ pub fn resume_attached_proxy() -> Result<Option<u16>> {
     ) else {
         return Ok(None);
     };
-    let node = node_runtime().context("未找到支持 fetch 和 WebSocket 的 Node.js")?;
+    let node = node_runtime().context("Node.js with fetch and WebSocket support was not found")?;
     // 程序升级后恢复的代理也要用新版脚本，不能沿用状态目录里的旧副本。
     install_assets(&root)?;
     let upstream = host().prepare_upstream(&config)?;
@@ -1419,10 +1419,10 @@ fn read_health(port: u16) -> Result<Value> {
     let header_end = bytes
         .windows(4)
         .position(|part| part == b"\r\n\r\n")
-        .context("本地服务状态响应不完整")?;
+        .context("Incomplete local service status response")?;
     ensure!(
         bytes.starts_with(b"HTTP/1.1 200 ") || bytes.starts_with(b"HTTP/1.0 200 "),
-        "本地服务状态异常"
+        "Local service status is invalid"
     );
     Ok(serde_json::from_slice(&bytes[header_end + 4..])?)
 }
@@ -1486,7 +1486,7 @@ pub fn status() -> Result<ClaudeLocalStatus> {
             upstream.models.clone(),
             upstream.hidden_models.clone(),
             upstream.default_window,
-            (!upstream.ready()).then(|| "还没有可用的上游：先配置上游并选一个默认模型".to_string()),
+            (!upstream.ready()).then(|| "No provider configured: add a provider and choose a default model".to_string()),
         ),
         Err(error) => (Vec::new(), Vec::new(), None, Some(format!("{error:#}"))),
     };
@@ -1503,9 +1503,9 @@ pub fn status() -> Result<ClaudeLocalStatus> {
     } else if let Some(problem) = upstream_problem {
         Some(problem)
     } else if config.enabled && !trusted {
-        Some("首次使用需要准备并信任本地证书".into())
+        Some("Prepare and trust the local certificate before first use".into())
     } else if config.enabled && config.voice_input && !dictation_ready {
-        Some("本地听写尚未就绪，请在语音设置中启用 SenseVoice 并准备模型".into())
+        Some("Local dictation is not ready; enable SenseVoice in voice settings and prepare the model".into())
     } else {
         fs::read_to_string(root.join("compatibility-warning.txt"))
             .ok()
@@ -1536,7 +1536,7 @@ pub fn status() -> Result<ClaudeLocalStatus> {
 pub fn configure(config: ClaudeLocalSettings) -> Result<ClaudeLocalStatus> {
     let _guard = OPERATION
         .try_lock()
-        .map_err(|_| anyhow::anyhow!("另一项 Claude 本地服务操作正在进行"))?;
+        .map_err(|_| anyhow::anyhow!("Another Claude local service operation is in progress"))?;
     let config = validate_config(config)?;
     host().save_config(&config)?;
     status()
@@ -1552,7 +1552,7 @@ fn wait_backend_ready(
     loop {
         ensure!(
             child.try_wait()?.is_none(),
-            "Claude 本地服务提前退出，请查看本地服务日志"
+            "Claude local service exited unexpectedly; check the local service log"
         );
         if let Ok(bytes) = fs::read(ready_file)
             && let Ok(value) = serde_json::from_slice::<Value>(&bytes)
@@ -1562,7 +1562,7 @@ fn wait_backend_ready(
         {
             return Ok(port);
         }
-        ensure!(Instant::now() < deadline, "Claude 本地服务启动超时");
+        ensure!(Instant::now() < deadline, "Claude local service startup timed out");
         std::thread::sleep(Duration::from_millis(50));
     }
 }
@@ -1601,7 +1601,7 @@ fn prepare_dictation(root: &Path, node: &Path) -> Result<()> {
                 .args(["--input-type=module", "-e", code])
                 .arg(
                     url::Url::from_file_path(root.join("scripts/patch-dictation-start.mjs"))
-                        .map_err(|_| anyhow::anyhow!("听写资源路径无效"))?
+                        .map_err(|_| anyhow::anyhow!("Invalid dictation resources path"))?
                         .as_str(),
                 )
                 .arg(&cache)
@@ -1613,7 +1613,7 @@ fn prepare_dictation(root: &Path, node: &Path) -> Result<()> {
             write_private(&root.join("compatibility-warning.txt"), b"")?;
             return Ok(());
         }
-        last_error = Some("当前版本的听写兼容资源尚未准备完成；首次加载或客户端更新后请重新准备。");
+        last_error = Some("Dictation compatibility resources are not ready; prepare them after first launch or an update.");
     }
     write_private(
         &root.join("compatibility-warning.txt"),
@@ -1635,7 +1635,7 @@ fn start_backend(
         return Ok(port);
     }
     stop_backend();
-    ensure!(upstream.ready(), "还没有可用的上游：先配置上游并选一个默认模型");
+    ensure!(upstream.ready(), "No provider configured: add a provider and choose a default model");
     // 本地听写的转写走宿主的听写服务（它写 dictation-helper.json 凭据），开着原生听写时先确保它在线。
     if config.voice_input {
         host().prepare_dictation_service()?;
@@ -1709,7 +1709,7 @@ fn start_backend(
         .stdin(Stdio::piped())
         .stdout(log.try_clone()?)
         .stderr(log);
-    let mut child = command.spawn().context("无法启动 Claude 本地兼容服务")?;
+    let mut child = command.spawn().context("Failed to start the Claude compatibility service")?;
     let stdin = child.stdin.take();
     let started = wait_backend_ready(&mut child, &ready_file, &instance, START_TIMEOUT);
     match started {
@@ -1977,7 +1977,7 @@ fn launch_original(
             command.env(name, value);
         }
     }
-    spawn_detached(&mut command, source, "无法启动原版 Claude Desktop")?;
+    spawn_detached(&mut command, source, "Failed to start the official Claude Desktop")?;
     Ok(())
 }
 
@@ -1995,7 +1995,7 @@ pub fn launch_claude(source: &Path, configure: impl FnOnce(&mut Command)) -> Res
         command.env_remove(name);
     }
     configure(&mut command);
-    spawn_detached(&mut command, source, "无法启动原版 Claude Desktop")
+    spawn_detached(&mut command, source, "Failed to start the official Claude Desktop")
 }
 
 /// 只停止本程序自己持有的代理进程，不关闭 Claude 或其它实例。
@@ -2160,15 +2160,15 @@ fn is_our_proxy(pid: u32, root: &Path) -> bool {
 pub fn perform(action: &str) -> Result<ClaudeLocalResult> {
     ensure!(
         platform_supported(),
-        "原版 Claude 本地模式目前仅支持 macOS 和 Windows"
+        "Claude local mode currently supports only macOS and Windows"
     );
     ensure!(
         ["launch", "stop", "trust", "untrust", "prepare", "sync_sessions"].contains(&action),
-        "未知的 Claude 本地服务操作"
+        "Unknown Claude local service operation"
     );
     let _guard = OPERATION
         .try_lock()
-        .map_err(|_| anyhow::anyhow!("另一项 Claude 本地服务操作正在进行"))?;
+        .map_err(|_| anyhow::anyhow!("Another Claude local service operation is in progress"))?;
     let config = host().load_config()?;
     let root = root_dir();
     let source = source_app();
@@ -2183,37 +2183,37 @@ pub fn perform(action: &str) -> Result<ClaudeLocalResult> {
             let quit = port.map(quit_claude_with_proxy).transpose()?.unwrap_or(false);
             restore_real_profile(&profile_sets(), &root)?;
             if quit {
-                "Claude 本地服务已停止，经它启动的 Claude 已退出。".to_string()
+                "Local service stopped, and Claude launched through it has exited.".to_string()
             } else {
-                "Claude 本地服务已停止。".to_string()
+                "Local service stopped.".to_string()
             }
         }
         "trust" => {
             install_assets(&root)?;
             prepare_ca(&root)?;
             trust_ca(&root)?;
-            "本地证书已信任。".to_string()
+            "Local certificate trusted.".to_string()
         }
         "untrust" => {
             untrust_ca(&root)?;
-            "本地证书已取消信任。".to_string()
+            "Local certificate trust removed.".to_string()
         }
         "prepare" => {
             install_assets(&root)?;
             prepare_ca(&root)?;
             if config.voice_input {
-                let node = node_runtime().context("未找到支持 fetch 和 WebSocket 的 Node.js")?;
+                let node = node_runtime().context("Node.js with fetch and WebSocket support was not found")?;
                 prepare_dictation(&root, &node)?;
             }
-            "Claude 本地兼容资源已准备，原版应用未修改。".to_string()
+            "Claude compatibility resources are ready; the official app was not modified.".to_string()
         }
         "sync_sessions" => {
             ensure!(
                 claude_processes()?.is_empty(),
-                "请先完全退出 Claude 再同步会话"
+                "Quit Claude completely before synchronizing sessions"
             );
             let sets = profile_sets();
-            let main = sets.first().context("无法定位 Claude 的 profile 目录")?;
+            let main = sets.first().context("Could not find Claude profile directory")?;
             let report = crate::session_sync::sync_sessions(
                 &main.three_p.join("claude-code-sessions"),
                 &[root.join("claude-code-3p"), home_dir().join(".claude")],
@@ -2225,7 +2225,7 @@ pub fn perform(action: &str) -> Result<ClaudeLocalResult> {
                 report.note.clone()
             } else {
                 format!(
-                    "已同步会话：3p→完整 {} 个，完整→3p {} 个，更新 {} 个，跳过已删除 {} 个。",
+                    "Sessions synchronized: 3p to full {}, full to 3p {}, updated {}, skipped deleted {}.",
                     report.to_full, report.to_three_p, report.updated, report.skipped_deleted
                 )
             }
@@ -2233,15 +2233,15 @@ pub fn perform(action: &str) -> Result<ClaudeLocalResult> {
         "launch" => {
             ensure!(
                 source_supported(&source),
-                "未安装 Claude Desktop，请先安装官方应用"
+                "Claude Desktop is not installed. Install the official app first"
             );
             ensure!(
                 claude_processes()?.is_empty(),
-                "Claude 正在运行，请先完全退出，再从这里启动以应用本地模式"
+                "Claude is running. Quit it completely and relaunch here to use local mode"
             );
             if config.session_sync {
                 let sets = profile_sets();
-                let main = sets.first().context("无法定位 Claude 的 profile 目录")?;
+                let main = sets.first().context("Could not find Claude profile directory")?;
                 match crate::session_sync::sync_sessions(
                     &main.three_p.join("claude-code-sessions"),
                     &[root.join("claude-code-3p"), home_dir().join(".claude")],
@@ -2251,7 +2251,7 @@ pub fn perform(action: &str) -> Result<ClaudeLocalResult> {
                 ) {
                     Ok(report) if report.to_full + report.to_three_p + report.updated > 0 => {
                         sync_summary = format!(
-                            "已同步会话：3p→完整 {} 个，完整→3p {} 个，更新 {} 个。",
+                            "Sessions synchronized: 3p to full {}, full to 3p {}, updated {}.",
                             report.to_full, report.to_three_p, report.updated
                         );
                     }
@@ -2272,7 +2272,7 @@ pub fn perform(action: &str) -> Result<ClaudeLocalResult> {
                     let sessions = crate::cli_import::full_mode_sessions_dir(&main.data);
                     match crate::cli_import::import_cli_sessions(&code_dir, &sessions) {
                         Ok(report) if report.imported > 0 => {
-                            sync_summary.push_str(&format!("已把 {} 个命令行会话加进会话列表。", report.imported));
+                            sync_summary.push_str(&format!("Added {} CLI sessions to the session list.", report.imported));
                         }
                         Ok(_) => {}
                         Err(error) => {
@@ -2289,9 +2289,9 @@ pub fn perform(action: &str) -> Result<ClaudeLocalResult> {
                 prepare_ca(&root)?;
                 ensure!(
                     ca_trusted(&root),
-                    "请先点击“信任本地证书”，完成系统授权后再启动"
+                    "Click Trust local certificate and complete system authorization before launching"
                 );
-                let node = node_runtime().context("未找到支持 fetch 和 WebSocket 的 Node.js")?;
+                let node = node_runtime().context("Node.js with fetch and WebSocket support was not found")?;
                 if config.voice_input {
                     prepare_dictation(&root, &node)?;
                 }
@@ -2304,13 +2304,13 @@ pub fn perform(action: &str) -> Result<ClaudeLocalResult> {
                     stop_backend();
                     return Err(error);
                 }
-                "已通过本地兼容服务启动原版 Claude Desktop。".to_string()
+                "Launched the official Claude Desktop through the local compatibility service.".to_string()
             } else {
                 stop_backend();
                 // 切回 3p 前先恢复真实 profile（宿主重写 configLibrary 前，顺序不能反）。
                 restore_real_profile(&profile_sets(), &root)?;
                 host().launch_three_p(&source, &root, &config)?;
-                "已启动原版 Claude Desktop 的 3p 模式。".to_string()
+                "Launched official Claude Desktop in API-key mode.".to_string()
             }
         }
         _ => unreachable!(),
