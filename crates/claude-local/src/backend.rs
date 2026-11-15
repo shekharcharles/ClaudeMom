@@ -2627,7 +2627,7 @@ server.listen(0,'127.0.0.1',()=>{
             if identity == "fixture" {
                 assert!(outcome.is_ok(), "当前进程和 HTTP 身份均匹配时应就绪");
             } else {
-                assert!(outcome.unwrap_err().to_string().contains("超时"));
+                assert!(outcome.unwrap_err().to_string().contains("timed out"));
             }
         }
     }
@@ -2636,7 +2636,7 @@ server.listen(0,'127.0.0.1',()=>{
     fn local_mode_defaults_preserve_original_launch() {
         let config: ClaudeLocalSettings = serde_json::from_value(json!({})).unwrap();
         assert!(!config.enabled);
-        assert!(config.localization && config.voice_input);
+        assert!(!config.localization && config.voice_input);
         assert!(!config.computer_use && !config.background_mode);
     }
 
