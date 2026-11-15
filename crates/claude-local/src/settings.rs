@@ -44,7 +44,7 @@ impl Default for ClaudeLocalSettings {
         Self {
             enabled: false,
             model: String::new(),
-            localization: true,
+            localization: false,
             voice_input: true,
             computer_use: false,
             background_mode: false,
