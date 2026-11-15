@@ -19,7 +19,7 @@ pub struct ProbeOutput {
 }
 
 pub fn probe_output(command: &mut Command, deadline: Instant) -> Result<ProbeOutput> {
-    ensure!(Instant::now() < deadline, "Claude 检测超时，请重试");
+    ensure!(Instant::now() < deadline, "Claude detection timed out; please retry");
     let path = std::env::temp_dir().join(format!("codex-plus-claude-probe-{}.tmp", uuid::Uuid::new_v4()));
     struct Capture(PathBuf);
     impl Drop for Capture {
@@ -35,7 +35,7 @@ pub fn probe_output(command: &mut Command, deadline: Instant) -> Result<ProbeOut
             use std::os::windows::process::CommandExt;
             command.creation_flags(crate::CREATE_NO_WINDOW);
         }
-        let mut child = command.spawn().context("无法启动 Claude 检测程序")?;
+        let mut child = command.spawn().context("Failed to launch Claude detection")?;
         let deadline = deadline.min(Instant::now() + PROBE_TIMEOUT);
         let status = loop {
             match child.try_wait() {
@@ -45,7 +45,7 @@ pub fn probe_output(command: &mut Command, deadline: Instant) -> Result<ProbeOut
                     let _ = child.kill();
                     let _ = child.wait();
                     if let Err(error) = result { return Err(error.into()); }
-                    bail!("Claude 检测超时，检测进程已结束，请重试");
+                    bail!("Claude detection timed out and the process was stopped; please retry");
                 }
             }
         };
@@ -97,7 +97,7 @@ pub fn source_app(deadline: Instant) -> Result<PathBuf> {
     if let Some(path) = candidates.into_iter().find(|path| path.is_file()) { return Ok(path); }
     // 查询失败不是「未安装」，明确返回错误，避免把超时误报成未安装。
     let output = query?;
-    ensure!(output.status.success(), "无法检测 Claude 安装位置，请检查 Windows 应用包服务后重试");
+    ensure!(output.status.success(), "Unable to locate Claude. Check the Windows App Package service and retry");
     Ok(local.join(r"Programs\Claude\Claude.exe"))
 }
 
@@ -108,7 +108,7 @@ fn claude_package_locations(bytes: &[u8]) -> Result<Vec<String>> {
         return Ok(Vec::new());
     }
     let value: serde_json::Value =
-        serde_json::from_slice(bytes).context("Claude 应用包查询返回了无效 JSON")?;
+        serde_json::from_slice(bytes).context("Claude package query returned invalid JSON")?;
     let records = match &value {
         serde_json::Value::Array(records) => records.as_slice(),
         serde_json::Value::Null => &[],
