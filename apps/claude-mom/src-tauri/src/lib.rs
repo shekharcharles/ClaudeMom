@@ -108,8 +108,8 @@ fn show_main_window<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
 }
 
 fn install_tray<R: tauri::Runtime>(app: &tauri::App<R>) -> tauri::Result<()> {
-    let show = MenuItem::with_id(app, TRAY_SHOW, "显示 ClaudeMom", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, TRAY_QUIT, "退出（同时停止本地服务）", true, None::<&str>)?;
+    let show = MenuItem::with_id(app, TRAY_SHOW, "Show ClaudeMom", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, TRAY_QUIT, "Quit (also stop local service)", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&show, &quit])?;
     let mut builder = TrayIconBuilder::with_id("claude_mom_tray")
         .menu(&menu)
