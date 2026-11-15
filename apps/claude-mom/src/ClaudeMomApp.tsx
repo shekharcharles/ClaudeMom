@@ -119,7 +119,7 @@ export function ClaudeMomApp() {
     return () => clearInterval(timer);
   }, [status?.running, status?.claudeRunning, busy, refreshStatus]);
 
-  /** English localization maintenance note.
+  /** English localization maintenance note. */
   const run = async <T,>(label: string, task: () => Promise<T>): Promise<T | undefined> => {
     if (pending.current) return undefined;
     pending.current = true;
@@ -559,7 +559,7 @@ function Toggle({ label, detail, hint, checked, disabled, onChange }: { label: s
 
 type ModelState = { modelReady: boolean; phase?: string; completedBytes?: number; totalBytes?: number; message?: string };
 
-/** English localization maintenance note.
+/** English localization maintenance note. */
 function VoiceModel({ onReady }: { onReady: () => void }) {
   const [state, setState] = useState<ModelState | null>(null);
   const [error, setError] = useState<string | null>(null);
