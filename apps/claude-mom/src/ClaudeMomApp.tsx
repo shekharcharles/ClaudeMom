@@ -40,7 +40,7 @@ export function ClaudeMomApp() {
   const pending = useRef(false);
 
   const say = (text: string, tone: "ok" | "error" = "ok") => setNotice(text ? { text, tone } : null);
-  // 提示过一会儿自己消失：成功的 5 秒，出错的 12 秒。
+  // English localization maintenance note.
   useEffect(() => {
     if (!notice) return;
     const timer = setTimeout(() => setNotice(null), notice.tone === "error" ? 12000 : 5000);
@@ -49,7 +49,7 @@ export function ClaudeMomApp() {
   const [version, setVersion] = useState("");
   const [update, setUpdate] = useState<UpdateState>({ phase: "idle" });
 
-  // 启动时静默查一次更新：只在有新版本时提示，查不到（离线、限流）不打扰。
+  // English localization maintenance note.
   useEffect(() => {
     void currentVersion().then(setVersion);
     const timer = setTimeout(() => {
@@ -98,7 +98,7 @@ export function ClaudeMomApp() {
     }
   }, []);
 
-  // 启动：读Provider（同时切到完整功能模式、把选中的Provider交给本地服务），再读 Claude 状态。
+  // English localization maintenance note.
   useEffect(() => {
     void (async () => {
       try {
@@ -112,14 +112,14 @@ export function ClaudeMomApp() {
     })();
   }, [acceptBook, refreshStatus]);
 
-  // Claude 开着或本地服务在跑时每 3 秒刷新一次状态；闲着不轮询（检测要查进程和证书）。
+  // Claude English localization maintenance note.
   useEffect(() => {
     if ((!status?.running && !status?.claudeRunning) || busy) return;
     const timer = setInterval(() => void refreshStatus(), 3000);
     return () => clearInterval(timer);
   }, [status?.running, status?.claudeRunning, busy, refreshStatus]);
 
-  /** 同一时间只做一件事；结束后刷新状态。 */
+  /** English localization maintenance note.
   const run = async <T,>(label: string, task: () => Promise<T>): Promise<T | undefined> => {
     if (pending.current) return undefined;
     pending.current = true;
@@ -151,7 +151,7 @@ export function ClaudeMomApp() {
       else say(result.message, "error");
     });
 
-  // 原生听写：Claude 开关、听写总开关、本地 SenseVoice 一起改（见 claude_mom_set_voice）。
+  // English localization maintenance note.
   const setVoice = (enabled: boolean) =>
     run("voice", async () => {
       const result = await invoke<CommandResult<ClaudeStatus>>("claude_mom_set_voice", { enabled });
@@ -195,7 +195,7 @@ export function ClaudeMomApp() {
     if (problem) return say(problem, "error");
     const profile = { ...draft, models: normalizeModels(draft.models, draft.model) };
     const result = await bookCall("save", "claude_mom_save_profile", { profile, activate }, draft.id || undefined);
-    // 新增的条目Save后才有 id：选中刚存的那条（列表最后一条或同名那条）。
+    // English localization maintenance note.
     if (result && isOk(result) && !draft.id) {
       const created = [...(result.profiles ?? [])].reverse().find((item) => item.baseUrl === profile.baseUrl.trim().replace(/\/+$/, ""));
       if (created) {
@@ -430,7 +430,7 @@ function UpstreamEditor({ draft, active, dirty, busy, onChange, onSave, onActiva
 }) {
   const [showKey, setShowKey] = useState(false);
   const [newModel, setNewModel] = useState("");
-  // 地址和 Key 填好以后很少改：默认收成一行，新建或没填时才展开。
+  // English localization maintenance note.
   const [editConnection, setEditConnection] = useState(!draft.id || !draft.baseUrl);
   useEffect(() => setEditConnection(!draft.id || !draft.baseUrl), [draft.id]);
   const set = (patch: Partial<UpstreamProfile>) => onChange({ ...draft, ...patch });
@@ -475,13 +475,13 @@ function UpstreamEditor({ draft, active, dirty, busy, onChange, onSave, onActiva
         <div className="cm-card-line">
           {options.length ? (
             <select aria-label="Default model" className="cm-grow" onChange={(event) => set({ model: event.currentTarget.value })} value={draft.model}>
-              {!draft.model ? <option value="">选一个Default model</option> : null}
+              {!draft.model ? <option value="">Choose a default model</option> : null}
               {options.map((model) => <option key={model} value={model}>{modelLabel(draft, model)}</option>)}
             </select>
           ) : (
             <input aria-label="Default model" className="cm-grow" onChange={(event) => set({ model: event.currentTarget.value })} placeholder="Fetch models or enter a model ID" spellCheck={false} value={draft.model} />
           )}
-          <button aria-label="Fetch models" className="cm-icon" disabled={busy !== null || !draft.baseUrl.trim()} onClick={onFetchModels} title="从ProviderFetch models列表" type="button">
+          <button aria-label="Fetch models" className="cm-icon" disabled={busy !== null || !draft.baseUrl.trim()} onClick={onFetchModels} title="Fetch models from provider" type="button">
             {busy === "models" ? <Loader2 className="cm-spin" /> : <RefreshCw />}
           </button>
         </div>
@@ -491,9 +491,9 @@ function UpstreamEditor({ draft, active, dirty, busy, onChange, onSave, onActiva
       <details className="cm-more">
         <summary>Advanced</summary>
         <div className="cm-form">
-          <Field hint="标题生成等小任务用，留空同Default model" label="Fast model">
+          <Field hint="For small tasks such as title generation; leave blank to use the default model" label="Fast model">
             <select onChange={(event) => set({ smallModel: event.currentTarget.value })} value={draft.smallModel}>
-              <option value="">同Default model</option>
+              <option value="">Same as default model</option>
               {options.map((model) => <option key={model} value={model}>{modelLabel(draft, model)}</option>)}
             </select>
           </Field>
@@ -517,7 +517,7 @@ function UpstreamEditor({ draft, active, dirty, busy, onChange, onSave, onActiva
                 className="cm-chip-input"
                 onChange={(event) => setNewModel(event.currentTarget.value)}
                 onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addModel(); } }}
-                placeholder="AddModel，回车"
+                placeholder="Add a model and press Enter"
                 spellCheck={false}
                 value={newModel}
               />
@@ -559,7 +559,7 @@ function Toggle({ label, detail, hint, checked, disabled, onChange }: { label: s
 
 type ModelState = { modelReady: boolean; phase?: string; completedBytes?: number; totalBytes?: number; message?: string };
 
-/** 本地 SenseVoice Model：状态、下载（约 230MB，和 Codex++ 共用 ~/.codex/speech-to-text）。 */
+/** English localization maintenance note.
 function VoiceModel({ onReady }: { onReady: () => void }) {
   const [state, setState] = useState<ModelState | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -632,7 +632,7 @@ function ClaudeSettings({ status, busy, onConfigure, onAction, onVoice, update, 
         <Toggle checked={config.localization} disabled={disabled} label="Chinese interface translation" onChange={(next) => onConfigure({ localization: next })} />
         <Toggle
           checked={config.voiceInput}
-          detail="Claude 输入框里的麦克风，用本机 SenseVoice 转写，音频不出本机。改完重新Launch Claude 生效。"
+          detail="Claude microphone uses local SenseVoice transcription; audio remains on this computer. Relaunch Claude to apply."
           disabled={disabled}
           label="Voice input"
           onChange={onVoice}
@@ -640,7 +640,7 @@ function ClaudeSettings({ status, busy, onConfigure, onAction, onVoice, update, 
         {config.voiceInput && !status.dictationReady ? <VoiceModel onReady={() => onAction("prepare")} /> : null}
         <Toggle
           checked={config.importCliSessions ?? true}
-          detail="Launch Claude 前，把终端、BaoCode 等命令行里建的Sessions加进左侧列表（已在列表里的、删过的不会重复加）。"
+          detail="Before launching Claude, import CLI sessions from terminals and BaoCode into the sidebar without duplicating existing or removed sessions."
           disabled={disabled}
           label="Show CLI sessions"
           onChange={(next) => onConfigure({ importCliSessions: next })}
@@ -677,7 +677,7 @@ function ClaudeSettings({ status, busy, onConfigure, onAction, onVoice, update, 
       <details className="cm-more">
         <summary>Advanced</summary>
         <Toggle checked={config.cowork ?? true} detail="When disabled, Claude controls availability; newer versions usually show only Chat / Code. Claude still checks Windows Store installation and virtualization requirements." disabled={disabled} label="Cowork" onChange={(next) => onConfigure({ cowork: next })} />
-        <Toggle checked={config.hideUnroutedModels ?? true} detail="Claude 自带的 Opus / Sonnet 等条目会被换成Default model" disabled={disabled} label="Show only provider models" onChange={(next) => onConfigure({ hideUnroutedModels: next })} />
+        <Toggle checked={config.hideUnroutedModels ?? true} detail="Built-in Opus and Sonnet options are routed to the default model" disabled={disabled} label="Show only provider models" onChange={(next) => onConfigure({ hideUnroutedModels: next })} />
         <Toggle checked={config.computerUse} detail="Requires working system Spotlight; otherwise Claude may hang" disabled={disabled} label="Computer use" onChange={(next) => onConfigure({ computerUse: next })} />
         <Toggle checked={config.backgroundMode} disabled={disabled} label="Background mode" onChange={(next) => onConfigure(next ? { backgroundMode: true } : { backgroundMode: false, forceBackgroundMode: false })} />
         <Toggle checked={config.forceBackgroundMode ?? false} detail="Newer macOS versions may report background mode unsupported. This overrides the OS-version check and may be unstable." disabled={disabled} label="Enable background mode on newer systems" onChange={(next) => onConfigure({ forceBackgroundMode: next })} />
