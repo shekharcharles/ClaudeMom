@@ -77,16 +77,16 @@ export type ClaudeStatus = {
 };
 
 export const SOURCE_LABELS: Record<string, string> = {
-  manual: "手动",
+  manual: "Manual",
   ccswitch: "cc-switch",
   magpie: "Magpie",
   codexpp: "Codex++",
 };
 
 export const IMPORT_SOURCES: Array<{ id: UpstreamSource; label: string; detail: string }> = [
-  { id: "ccswitch", label: "cc-switch", detail: "导入 cc-switch 里的 Claude 供应商" },
-  { id: "magpie", label: "Magpie", detail: "把 Magpie 的本机网关当上游" },
-  { id: "codexpp", label: "Codex++", detail: "把 Codex++ 的本机网关当上游" },
+  { id: "ccswitch", label: "cc-switch", detail: "Import Claude providers from cc-switch" },
+  { id: "magpie", label: "Magpie", detail: "Use the local Magpie gateway as a provider" },
+  { id: "codexpp", label: "Codex++", detail: "Use the local Codex++ gateway as a provider" },
 ];
 
 export function emptyProfile(): UpstreamProfile {
@@ -104,16 +104,16 @@ export function hostOf(url: string): string {
 /** 表单校验：返回第一条问题，没有问题返回 null。 */
 export function profileProblem(profile: UpstreamProfile): string | null {
   const base = profile.baseUrl.trim();
-  if (!base) return "填一个 Base URL";
+  if (!base) return "Enter a Base URL";
   let parsed: URL;
   try {
     parsed = new URL(base);
   } catch {
-    return "Base URL 不是有效地址";
+    return "Invalid Base URL";
   }
-  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return "Base URL 要以 http:// 或 https:// 开头";
-  if (/\/v1\/messages\/?$/.test(parsed.pathname)) return "Base URL 只写到根地址，不要带 /v1/messages";
-  if (!profile.model.trim()) return "选一个默认模型";
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return "Base URL must start with http:// or https://";
+  if (/\/v1\/messages\/?$/.test(parsed.pathname)) return "Enter only the base URL without /v1/messages";
+  if (!profile.model.trim()) return "Select a default model";
   return null;
 }
 
@@ -131,29 +131,29 @@ export type Tone = "ok" | "warn" | "off" | "busy";
 
 /** 顶部状态条：一句话 + 色调。 */
 export function claudeState(status: ClaudeStatus | null, busy: string | null): { text: string; tone: Tone } {
-  if (busy === "launch") return { text: "正在启动…", tone: "busy" };
-  if (busy === "stop") return { text: "正在停止…", tone: "busy" };
-  if (!status) return { text: "正在检测 Claude…", tone: "busy" };
-  if (!status.supported) return { text: "没有找到 Claude Desktop", tone: "warn" };
-  if (status.connected) return { text: "已连接", tone: "ok" };
-  if (status.claudeRunning && status.localProcess) return { text: "运行中", tone: "ok" };
-  if (status.claudeRunning) return { text: "Claude 已打开，但没有经 ClaudeMom 启动", tone: "warn" };
-  if (status.running) return { text: "本地服务已就绪", tone: "ok" };
-  return { text: "未启动", tone: "off" };
+  if (busy === "launch") return { text: "Launching…", tone: "busy" };
+  if (busy === "stop") return { text: "Stopping…", tone: "busy" };
+  if (!status) return { text: "Detecting Claude…", tone: "busy" };
+  if (!status.supported) return { text: "Claude Desktop not found", tone: "warn" };
+  if (status.connected) return { text: "Connected", tone: "ok" };
+  if (status.claudeRunning && status.localProcess) return { text: "Running", tone: "ok" };
+  if (status.claudeRunning) return { text: "Claude is running but was not launched by ClaudeMom", tone: "warn" };
+  if (status.running) return { text: "Local service ready", tone: "ok" };
+  return { text: "Not running", tone: "off" };
 }
 
 /** 启动前还差什么：按顺序列出，界面逐条给按钮。 */
 export function setupSteps(status: ClaudeStatus | null, active: UpstreamProfile | null): Array<{ id: "upstream" | "node" | "trust"; text: string }> {
   if (!status || !status.supported) return [];
   const steps: Array<{ id: "upstream" | "node" | "trust"; text: string }> = [];
-  if (!active || profileProblem(active)) steps.push({ id: "upstream", text: "先添加一组上游并选好默认模型" });
-  if (!status.nodeAvailable) steps.push({ id: "node", text: "需要 Node.js（支持 fetch 与 WebSocket 的版本）" });
-  if (!status.caTrusted) steps.push({ id: "trust", text: "首次使用需要信任本地证书" });
+  if (!active || profileProblem(active)) steps.push({ id: "upstream", text: "Add a provider and select a default model" });
+  if (!status.nodeAvailable) steps.push({ id: "node", text: "Node.js is required (with fetch and WebSocket support)" });
+  if (!status.caTrusted) steps.push({ id: "trust", text: "Trust the local certificate before first use" });
   return steps;
 }
 
 export const WINDOW_PRESETS: Array<{ value: number | null; label: string }> = [
-  { value: null, label: "不声明（200k）" },
+  { value: null, label: "Default (200k)" },
   { value: 200_000, label: "200k" },
   { value: 400_000, label: "400k" },
   { value: 1_000_000, label: "1M" },
