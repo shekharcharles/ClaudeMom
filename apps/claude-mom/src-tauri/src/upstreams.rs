@@ -112,7 +112,7 @@ impl UpstreamBook {
         profile.base_url = profile.base_url.trim().trim_end_matches('/').to_string();
         profile.name = profile.name.trim().to_string();
         if profile.name.is_empty() {
-            profile.name = host_of(&profile.base_url).unwrap_or_else(|| "未命名".into());
+            profile.name = host_of(&profile.base_url).unwrap_or_else(|| "Unnamed".into());
         }
         if profile.source.is_empty() {
             profile.source = SOURCE_MANUAL.into();
@@ -186,9 +186,9 @@ pub fn default_book_path() -> PathBuf {
 pub fn load_book(path: &Path) -> Result<UpstreamBook> {
     match std::fs::read(path) {
         Ok(bytes) => serde_json::from_slice(&bytes)
-            .with_context(|| format!("上游配置文件损坏：{}", path.display())),
+            .with_context(|| format!("Provider configuration is corrupt: {}", path.display())),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(UpstreamBook::default()),
-        Err(error) => Err(error).with_context(|| format!("读取上游配置失败：{}", path.display())),
+        Err(error) => Err(error).with_context(|| format!("Failed to read provider configuration: {}", path.display())),
     }
 }
 
@@ -250,13 +250,13 @@ fn cc_switch_dir_override(store: &Path, home: &Path) -> Option<PathBuf> {
 /// OpenAI / Gemini 格式的要经它自己的代理转换，这里不收；两边配了同一组地址和 Key 的只收一次。
 pub fn cc_switch_profiles(db: &Path) -> Result<Vec<UpstreamProfile>> {
     if !db.is_file() {
-        bail!("没有找到 cc-switch 的数据库：{}", db.display());
+        bail!("cc-switch database not found: {}", db.display());
     }
     let connection = rusqlite::Connection::open_with_flags(
         db,
         rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
     )
-    .with_context(|| format!("打开 cc-switch 数据库失败：{}", db.display()))?;
+    .with_context(|| format!("Failed to open cc-switch database: {}", db.display()))?;
     let mut statement = connection.prepare(
         "SELECT id, app_type, name, settings_config, COALESCE(meta, '{}') FROM providers \
          WHERE app_type IN ('claude', 'claude-desktop') \
@@ -291,8 +291,8 @@ pub fn cc_switch_profiles(db: &Path) -> Result<Vec<UpstreamProfile>> {
     }
     if profiles.is_empty() && other_formats > 0 {
         bail!(
-            "cc-switch 里的 {other_formats} 个 Claude 供应商都不是 Anthropic 格式（例如 OpenAI Chat），\
-             它们要经 cc-switch 自己的代理转换，ClaudeMom 没法直连。可以在 ClaudeMom 里手动添加 Anthropic 格式的地址和 Key。"
+            "All {other_formats} Claude providers in cc-switch use non-Anthropic formats (such as OpenAI Chat); \
+             they require cc-switch's proxy conversion and cannot be accessed directly by ClaudeMom. Add an Anthropic-compatible URL and key manually instead."
         );
     }
     Ok(profiles)
@@ -405,9 +405,9 @@ pub fn codex_plus_plus_profile(state_dir: &Path) -> Result<UpstreamProfile> {
     let path = state_dir.join("gateway.json");
     let gateway: Value = match std::fs::read(&path) {
         Ok(bytes) => serde_json::from_slice(&bytes)
-            .with_context(|| format!("Codex++ 网关配置损坏：{}", path.display()))?,
+            .with_context(|| format!("Codex++ gateway configuration is corrupt: {}", path.display()))?,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Value::Null,
-        Err(error) => return Err(error).with_context(|| format!("读取 Codex++ 网关配置失败：{}", path.display())),
+        Err(error) => return Err(error).with_context(|| format!("Failed to read Codex++ gateway configuration: {}", path.display())),
     };
     // 本机网关端口：Codex++ 迁移过端口时记在 protocol-proxy-port，没有就是默认的 57321。
     let port = std::fs::read_to_string(state_dir.join("protocol-proxy-port"))
@@ -433,7 +433,7 @@ pub fn codex_plus_plus_profile(state_dir: &Path) -> Result<UpstreamProfile> {
             });
         }
     }
-    bail!("Codex++ 里还没有接入 Claude：先在 Codex++ 的「Agent 接入」里接入 Claude Code 或 Claude Desktop")
+    bail!("Claude is not connected in Codex++. Connect Claude Code or Claude Desktop in Codex++ Agent integrations first")
 }
 
 /// Codex++ 的状态目录（`~/.codex-session-delete`）。
@@ -457,7 +457,7 @@ pub struct UpstreamModel {
 pub async fn fetch_models(base_url: &str, api_key: &str) -> Result<Vec<UpstreamModel>> {
     let base = base_url.trim().trim_end_matches('/');
     let url = reqwest::Url::parse(&format!("{base}/v1/models"))
-        .with_context(|| format!("Base URL 不是有效地址：{base_url}"))?;
+        .with_context(|| format!("Invalid Base URL: {base_url}"))?;
     let loopback = matches!(url.host_str(), Some("127.0.0.1" | "localhost" | "::1" | "[::1]"));
     let mut client = reqwest::Client::builder().timeout(std::time::Duration::from_secs(20));
     if loopback {
@@ -472,22 +472,22 @@ pub async fn fetch_models(base_url: &str, api_key: &str) -> Result<Vec<UpstreamM
         .header("anthropic-version", "2023-06-01")
         .send()
         .await
-        .context("请求模型列表失败")?;
+        .context("Failed to fetch model list")?;
     let status = response.status();
     let body = response.text().await.unwrap_or_default();
     if !status.is_success() {
         let detail: String = body.chars().take(200).collect();
-        bail!("上游返回 {status}：{detail}");
+        bail!("Provider returned {status}: {detail}");
     }
     parse_models(&body)
 }
 
 fn parse_models(body: &str) -> Result<Vec<UpstreamModel>> {
-    let value: Value = serde_json::from_str(body).context("模型列表不是 JSON")?;
+    let value: Value = serde_json::from_str(body).context("Model list is not valid JSON")?;
     let entries = value
         .get("data")
         .and_then(Value::as_array)
-        .context("模型列表里没有 data 字段")?;
+        .context("Model list has no data field")?;
     let mut seen = BTreeMap::new();
     let mut models = Vec::new();
     for entry in entries {
