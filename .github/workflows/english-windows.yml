@@ -1,0 +1,34 @@
+name: Build English Windows installer
+on:
+  push:
+    branches: [english-windows-build]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: apps/claude-mom/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install frontend dependencies
+        working-directory: apps/claude-mom
+        run: npm ci
+      - name: Typecheck frontend
+        working-directory: apps/claude-mom
+        run: npm run check
+      - name: Build Windows EXE installer
+        working-directory: apps/claude-mom
+        run: npm run tauri -- build --bundles nsis --config windows-build.conf.json
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: ClaudeMom-English-Windows-x64
+          path: target/release/bundle/nsis/*.exe
+          if-no-files-found: error

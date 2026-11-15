@@ -1,81 +1,85 @@
 # ClaudeMom
 
-**不用 Claude 账号！把 API Key 变成登录模式，Claude 桌面版全功能解锁（汉化 / 语音 / 电脑控制）**
+**Use an API key with the full Claude Desktop experience — Chat, Code, Cowork, voice input, and computer control — without signing in to a Claude account.**
 
-<img src="docs/images/cover.jpg" alt="ClaudeMom" width="640">
+> **English Windows build:** The source on the `english-windows-build` branch uses an English interface and defaults to leaving Claude Desktop's Chinese localization disabled. Download the unsigned Windows installer from the successful [GitHub Actions build](https://github.com/shekharcharles/ClaudeMom/actions/workflows/english-windows.yml) under **Artifacts**. This is a development build, not a signed official release.
 
-Claude 桌面版一直有两种用法：
+![ClaudeMom](docs/images/cover.jpg)
 
-- **登录官方账号**：完整功能，Chat / Code / Cowork、电脑控制、语音输入都在
-- **填 API Key（第三方 / 3p 模式）**：能用，但很多功能入口直接没了
+## How it works
 
-ClaudeMom 是一种**新的接入方式**：在本机把你的 API Key **变成「登录模式」**。Claude 桌面版看到的是一个已登录的账号，界面和功能都是登录版的；实际的模型请求走你自己的 Base URL + Key。
+Claude Desktop has two traditional modes:
 
-不需要 Claude 账号，不改原版应用，不动官方登录态，官方 App 照常更新。
+- **Official account login:** Full Chat, Code, Cowork, voice input, and computer-control functionality (subject to account and platform availability).
+- **API key / third-party mode:** Uses your API provider but may hide some features.
 
-下载：[Releases](https://github.com/BigPizzaV3/ClaudeMom/releases/latest)（macOS 通用版 dmg / Windows exe）
+ClaudeMom provides a local compatibility service that presents a signed-in-style session to Claude Desktop and routes model traffic to the configured **Base URL + API key**. It does not modify the official application or overwrite your official account credentials. A locally trusted certificate is used to handle requests; you can revoke trust later.
 
-友情链接：<a href="https://linux.do">LINUX DO</a>
+**Important:** This is an independent project. Availability of features is not guaranteed, and using third-party endpoints with Claude may have privacy, security, terms-of-service or compatibility implications. Only use API providers and features for which you are authorized.
 
-## 三种接入方式对比
+## Features
 
-| | 登录官方账号 | API Key（3p 模式） | **ClaudeMom** |
-|---|---|---|---|
-| 需要 Claude 账号 | 要 | 不要 | **不要** |
-| 模型来源 | 官方 | 你的 Key | **你的 Key** |
-| Chat / Code / Cowork | ✅ | 部分 | **✅** |
-| 电脑控制 / 语音输入 | ✅ | ❌ | **✅** |
-| 中文界面 | ✅ 但是不敢开 | ❌ | **✅** |
+- Full-feature-style Claude Desktop access: Chat, Code, Cowork (subject to local capability checks)
+- Multiple Anthropic-compatible API providers; fetch model lists and switch profiles
+- Import Claude providers from cc-switch, Magpie, and Codex++
+- English ClaudeMom user interface
+- Optional local offline speech dictation with SenseVoice
+- Optional sharing of `~/.claude` sessions with the Code tab
+- Session synchronization and advanced controls
+- Windows NSIS installer builds through GitHub Actions
 
-## 原理
+![ClaudeMom main window](docs/images/claudemom.png)
 
-本地起一个兼容服务，接管 Claude 桌面版的账号和功能请求：账号信息、功能开关按「已登录」返回，对话请求转发到你配置的上游。证书只在本机生效，随时可以取消信任。
+## Windows setup
 
-## 功能
+1. Install the official **Claude Desktop** application and **Node.js 22 or later**.
+2. Download the `.exe` installer from the latest successful [English Windows build](https://github.com/shekharcharles/ClaudeMom/actions/workflows/english-windows.yml). Select the run, then download **ClaudeMom-English-Windows-x64** under **Artifacts**.
+3. Run the installer. Windows may display an unrecognized-publisher warning because the development installer is unsigned. Review the source and confirm the artifact before proceeding.
+4. Open ClaudeMom. Follow prompts to prepare and trust the **local** certificate.
+5. Add a provider with an Anthropic-compatible Base URL and key, then choose a model.
+6. Select **Launch Claude**.
 
-- **登录模式体验**：Chat / Code / Cowork 三个页签都能用，是原版客户端，不是网页套壳
-- **多组上游**：每组一个 Base URL + Key（Anthropic 兼容，和 `ANTHROPIC_BASE_URL` 同语义），随时切换，可拉取模型列表
-- **一键导入**：cc-switch 的 Claude 供应商；也可以把 Magpie 的本机网关当上游
-- **界面汉化**：完整中文界面
-- **语音输入**：本地离线听写（SenseVoice），音频不出本机
-- **电脑控制 / 后台模式**：较新的 macOS 上 Claude 会提示「暂不支持后台模式」，高级里有开关可以解除版本限制（默认关）
-- **Code 页签和命令行共用 `~/.claude`**：终端、其他工具里建的 Claude Code 会话也会出现在 Desktop 左侧列表
-- **自动更新**；macOS 版已签名 + 公证，下载即可打开
+### Building the executable yourself
 
-<img src="docs/images/claudemom.png" alt="ClaudeMom 主界面" width="640">
+On Windows with a supported Rust toolchain, Node.js 22+, and the usual [Tauri Windows prerequisites](https://v2.tauri.app/start/prerequisites/):
 
-<img src="docs/images/claude-desktop.jpg" alt="Claude 桌面版登录模式" width="640">
+```powershell
+git clone https://github.com/shekharcharles/ClaudeMom.git
+cd ClaudeMom
+git checkout english-windows-build
+cd apps/claude-mom
+npm ci
+npm run check
+npm run tauri -- build --bundles nsis --config windows-build.conf.json
+```
 
-## 使用
+The installer will be generated at `target/release/bundle/nsis/ClaudeMom_<version>_x64-setup.exe` relative to the repository root.
 
-1. 先装好官方 Claude Desktop 和 Node.js 22+
-2. 打开 ClaudeMom，第一次按提示信任本地证书（只在本机生效）
-3. 添加上游（或从 cc-switch 导入），选默认模型
-4. 点「启动 Claude」，进去就是登录版界面
+### Notes about updates and language
 
-欢迎提 issue 和 PR，一起把 Claude 桌面版用得更顺手！
+The original project ships a Chinese localization catalog for Claude Desktop. New installations of this English branch default to **Chinese interface translation off** under **Claude settings**. Existing installations may retain their previous setting; turn it off manually if needed. The app's updater remains configured to the original upstream releases; installing an upstream update can overwrite the English build.
 
-## 结构
+## Project structure
 
-| 目录 | 说明 |
+| Directory | Purpose |
 |---|---|
-| `crates/claude-local` | 核心：本地兼容服务（`runtime/`）、证书、profile 切换、启动 / 停止、听写。 |
-| `apps/claude-mom` | ClaudeMom 桌面程序（Tauri + React）。 |
+| `apps/claude-mom` | Tauri + React desktop application |
+| `crates/claude-local` | Local compatibility service, profiles, certificates, process control, and dictation |
+| `crates/claude-local/runtime` | Node.js runtime and protocol handlers |
+| `.github/workflows/english-windows.yml` | Windows executable build and downloadable artifact |
 
-## 开发
+## Development and testing
 
 ```bash
 cd apps/claude-mom
-npm install
-npm run check && npm test          # 前端
-cargo test --workspace             # Rust（在仓库根目录）
-npx tauri build --bundles app      # 打包 macOS .app
-node scripts/relaunch-local.mjs    # 构建并重启本地实例（在仓库根目录）
+npm ci
+npm run check
+npm test
+
+# From the repository root:
+cargo test --workspace
 ```
 
-核心的 Node 测试：`cd crates/claude-local/runtime && node --test managed.test.mjs proxy.test.mjs`
-（需要本地测试证书：`scripts/gen-ca.sh`）。
+## License
 
-## 许可
-
-AGPL-3.0-only
+AGPL-3.0-only. Retain license and attribution when distributing modified builds.
